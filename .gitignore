@@ -1,0 +1,35 @@
+# --- Maven build outputs
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# --- NetBeans
+nbproject/private/
+nbbuild/
+nbdist/
+dist/
+.nb-gradle/
+.nb-gradle-properties
+
+# --- IDEs
+.idea/
+*.iml
+.vscode/
+
+# --- Java / logs
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# --- SO / basura
+.DS_Store
+Thumbs.db
+
+# --- Ejecutables generados (por si haces shade/fat jar local)
+/*.jar
+
+# --- Datos mutables en runtime (tu proyecto usa TXT particionados/replicas)
+# Mantén ejemplos, pero no subas datos reales generados por pruebas
+/data/**
+!/data/README.md
+!/data/*.sample
