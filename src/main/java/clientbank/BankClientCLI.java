@@ -48,24 +48,40 @@ public class BankClientCLI {
         }
         System.out.println("Bootstrap listo.");
     }
+// 💻 COPIA Y PEGA ESTE CÓDIGO COMPLETO REEMPLAZANDO EL MÉTODO repl() ORIGINAL
 
     private void repl() throws Exception {
-        System.out.println("Comandos:");
-        System.out.println("  CONSULTAR_CUENTA <id>");
-        System.out.println("  ESTADO_PAGO_PRESTAMO <id>");
-        System.out.println("  TRANSFERIR_CUENTA <origen> <destino> <monto>");
-        System.out.println("  ARQUEO_CUENTAS");
+        // Mensaje de bienvenida mejorado
+        System.out.println("Cliente de Banco CLI. Escriba 'help' o '?' para ver los comandos.");
         System.out.println("Ctrl+D para salir.");
+    
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         String line;
         while ((line = br.readLine()) != null) {
             line = line.trim();
             if (line.isEmpty()) continue;
+        
             String[] t = line.split("\\s+");
             String cmd = t[0].toUpperCase(Locale.ROOT);
+        
             try {
                 switch (cmd) {
+                    case "HELP":
+                    case "?":
+                        System.out.println("Comandos disponibles:");
+                        System.out.println("  CONSULTAR_CUENTA <id_cuenta>");
+                        System.out.println("  ESTADO_PAGO_PRESTAMO <id_cuenta>");
+                        System.out.println("  TRANSFERIR_CUENTA <id_origen> <id_destino> <monto>");
+                        System.out.println("  ARQUEO_CUENTAS");
+                        System.out.println("  HELP o ? para mostrar esta ayuda.");
+                        break;
+
                     case "CONSULTAR_CUENTA": {
+                        // --- VALIDACIÓN DE ARGUMENTOS ---
+                        if (t.length < 2) {
+                            System.out.println("Error: Falta el ID de la cuenta. Uso: CONSULTAR_CUENTA <id>");
+                            break;
+                        }
                         long id = Long.parseLong(t[1]);
                         Map<String,Object> d = new LinkedHashMap<>();
                         d.put("id", id);
@@ -74,6 +90,11 @@ public class BankClientCLI {
                         break;
                     }
                     case "ESTADO_PAGO_PRESTAMO": {
+                        // --- VALIDACIÓN DE ARGUMENTOS ---
+                        if (t.length < 2) {
+                            System.out.println("Error: Falta el ID de la cuenta. Uso: ESTADO_PAGO_PRESTAMO <id>");
+                            break;
+                        }
                         long id = Long.parseLong(t[1]);
                         Map<String,Object> d = new LinkedHashMap<>();
                         d.put("id", id);
@@ -82,6 +103,11 @@ public class BankClientCLI {
                         break;
                     }
                     case "TRANSFERIR_CUENTA": {
+                        // --- VALIDACIÓN DE ARGUMENTOS ---
+                        if (t.length < 4) {
+                            System.out.println("Error: Faltan argumentos. Uso: TRANSFERIR_CUENTA <origen> <destino> <monto>");
+                            break;
+                        }
                         long o = Long.parseLong(t[1]);
                         long de = Long.parseLong(t[2]);
                         double m = Double.parseDouble(t[3]);
@@ -100,14 +126,16 @@ public class BankClientCLI {
                         break;
                     }
                     default:
-                        System.out.println("Comando no reconocido.");
+                        System.out.println("Comando no reconocido. Escriba 'help' para ver la lista de comandos.");
                 }
+            } catch (NumberFormatException e) {
+                System.out.println("Error: El ID o el monto deben ser números válidos.");
             } catch (Exception e) {
-                System.out.println("Error: " + e.getMessage());
+                System.out.println("Error procesando la solicitud: " + e.getMessage());
             }
         }
     }
-
+    
     public static void main(String[] args) throws Exception {
         String host = "localhost";
         int port = 6002;
