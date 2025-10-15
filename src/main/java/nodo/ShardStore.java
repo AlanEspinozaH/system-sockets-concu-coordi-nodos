@@ -106,9 +106,7 @@ public class ShardStore {
         }
     }
 
-    // --- API para WorkerHandler ---
-
-    // 💻 Reemplaza el método createCuenta
+    // -- API para WorkerHandler --
     public boolean createCuenta(long id, double saldo) throws IOException {
         if (saldos.containsKey(id)) return false; // Verificación rápida sin lock
 
