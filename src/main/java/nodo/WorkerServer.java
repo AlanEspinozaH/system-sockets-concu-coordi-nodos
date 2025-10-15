@@ -17,7 +17,7 @@ public class WorkerServer {
         int poolSize = 32;
 
         ShardStore store = new ShardStore(port);
-        TxLog txlog = new TxLog();
+        TxLog txlog = new TxLog(port);
 
         ExecutorService pool = Executors.newFixedThreadPool(poolSize);
         try (ServerSocket ss = new ServerSocket(port)) {
