@@ -22,6 +22,8 @@ public class ShardStore {
     private final File baseDir;
     private final ConcurrentHashMap<Long, Double> saldos = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Loan> prestamos = new ConcurrentHashMap<>();
+    // añadimos mapa de candados para los locks 
+    private final ConcurrentHashMap<Long, ReentrantLock> accountLocks = new ConcurrentHashMap<>();
     private volatile long seqMov = 1;
 
     public static class Loan { public double deuda; public int dias; Loan(double d,int di){deuda=d;dias=di;} }
@@ -105,27 +107,38 @@ public class ShardStore {
 
     // --- API para WorkerHandler ---
 
-    public synchronized boolean createCuenta(long id, double saldo) throws IOException {
-        if (saldos.containsKey(id)) return false;
-        persistCuenta(id, saldo);
-        appendMov(id, "Apertura", saldo);
-        return true;
+    // 💻 Reemplaza el método createCuenta
+    public boolean createCuenta(long id, double saldo) throws IOException {
+        if (saldos.containsKey(id)) return false; // Verificación rápida sin lock
+
+        ReentrantLock lock = getLockForAccount(id);
+        lock.lock();
+        try {
+        // Doble verificación por si otro hilo la creó mientras esperábamos el lock
+            if (saldos.containsKey(id)) return false;
+
+            persistCuenta(id, saldo); // Llama a la versión sin synchronized
+            appendMov(id, "Apertura", saldo);
+            return true;
+        } finally {
+            lock.unlock();
+        }
     }
 
     /** PREPARE: verifica que el delta no deje saldo negativo (si es débito). */
-    public synchronized boolean canApply(long id, double delta) {
+    public boolean canApply(long id, double delta) {
         double s = saldos.getOrDefault(id, 0.0);
         return !(s + delta < 0.0);
     }
 
-    public synchronized void applyDelta(long id, double delta, String concepto) throws IOException {
+    public void applyDelta(long id, double delta, String concepto) throws IOException {
         double s = saldos.getOrDefault(id, 0.0);
         s += delta;
         persistCuenta(id, s);
         appendMov(id, concepto, delta);
     }
 
-    public synchronized double getSaldo(long id) {
+    public double getSaldo(long id) {
         return saldos.getOrDefault(id, 0.0);
     }
 
@@ -166,5 +179,11 @@ public class ShardStore {
         if (!prestamos.containsKey(id) && id % 10 == 0) { // 10% de cuentas
             upsertPrestamo(id, 500.0, 2);
         }
+    }
+
+    // Metodo para obtener candados 
+    private ReentrantLock getLockForAccount(long accountId) {
+    // computeIfAbsent garantiza que solo se cree un candado por ID, de forma atómica.
+    return accountLocks.computeIfAbsent(accountId, k -> new ReentrantLock());
     }
 }
