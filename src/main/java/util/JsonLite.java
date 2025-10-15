@@ -136,4 +136,46 @@ public final class JsonLite {
             return null;
         }
     }
+
+    // ===== AÑADE ESTE MÉTODO A JsonLite.java =====
+    public static List<Map<String, Object>> getListOfMaps(String json, String key1, String key2) {
+        // Este es un parser muy simple y específico para este caso.
+        // No es un parser JSON general.
+        try {
+            String dataJson = getSub(json, key1);
+            if (dataJson == null) return null;
+
+            String opsPat = "\"" + key2 + "\":[";
+            int start = dataJson.indexOf(opsPat);
+            if (start < 0) return null;
+            start += opsPat.length();
+
+            int end = dataJson.indexOf("]", start);
+            if (end < 0) return null;
+
+            String opsContent = dataJson.substring(start, end);
+            List<Map<String, Object>> result = new ArrayList<>();
+            String[] objects = opsContent.split("\\},\\{");
+
+            for (String objStr : objects) {
+                Map<String, Object> map = new LinkedHashMap<>();
+                String cleanObj = objStr.replace("{", "").replace("}", "").trim();
+                String[] pairs = cleanObj.split(",");
+                for (String pair : pairs) {
+                    String[] kv = pair.split(":");
+                    String key = kv[0].replace("\"", "").trim();
+                    String value = kv[1].trim();
+                    if (value.contains("\"")) {
+                        map.put(key, value.replace("\"", ""));
+                    } else {
+                        map.put(key, Double.parseDouble(value));
+                    }
+                }
+                result.add(map);
+            }
+            return result;
+        } catch (Exception e) {
+            return null; // Error de parseo
+        }
+    }
 }

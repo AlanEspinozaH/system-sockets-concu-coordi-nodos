@@ -10,6 +10,7 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Almacenamiento simple en memoria + persistencia CSV.
@@ -186,4 +187,20 @@ public class ShardStore {
     // computeIfAbsent garantiza que solo se cree un candado por ID, de forma atómica.
     return accountLocks.computeIfAbsent(accountId, k -> new ReentrantLock());
     }
+    
+    public synchronized void applyLocalTransfer(long idOrigen, long idDestino, double monto) throws IOException {
+        // Este método es synchronized para garantizar la atomicidad de la operación
+        double sOrigen = saldos.getOrDefault(idOrigen, 0.0);
+        double sDestino = saldos.getOrDefault(idDestino, 0.0);
+
+        sOrigen -= monto;
+        sDestino += monto;
+
+        persistCuenta(idOrigen, sOrigen);
+        persistCuenta(idDestino, sDestino);
+
+        appendMov(idOrigen, "Transferencia Enviada", -monto);
+        appendMov(idDestino, "Transferencia Recibida", +monto);
+    }
+
 }

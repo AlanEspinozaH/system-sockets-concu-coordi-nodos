@@ -68,26 +68,45 @@ public class TwoPC {
         RoutingTable.Node nO = routing.primaryOf(pO);
         RoutingTable.Node nD = routing.primaryOf(pD);
 
+        // ===== REEMPLAZA EL BLOQUE if (pO == pD) CON ESTO =====
+        // ===== REEMPLAZA EL BLOQUE if (pO == pD) CON ESTO =====
         if (pO == pD) {
-            // Transferencia intra-shard: enviar APPLY única al primario
+            // Transferencia intra-shard: enviar APPLY única al primario con AMBAS operaciones
             try (Socket s = new Socket(nO.host, nO.port)) {
-                String apply = msg("APPLY_TRANSFER_LOCAL", txId, origen, -monto);
+                // Creamos un mensaje que contiene una lista de dos operaciones
+                Map<String,Object> m = new LinkedHashMap<>();
+                m.put("type", "APPLY_TRANSFER_LOCAL");
+                m.put("req_id", UUID.randomUUID().toString());
+                m.put("client_id", "CENTRAL");
+                m.put("ts", System.currentTimeMillis());
+                Map<String,Object> d = new LinkedHashMap<>();
+                d.put("tx_id", txId);
+                List<Object> ops = new ArrayList<>();
+                Map<String,Object> op1 = new LinkedHashMap<>();
+                op1.put("id", origen);
+                op1.put("delta", -monto);
+                ops.add(op1);
+                Map<String,Object> op2 = new LinkedHashMap<>();
+                op2.put("id", destino);
+                op2.put("delta", +monto);
+                ops.add(op2);
+                d.put("ops", ops);
+                m.put("data", d);
+                String apply = JsonLite.obj(m);
+
                 LengthPrefixedCodec.write(s.getOutputStream(), apply);
-                // segundo delta en mismo shard
-                String apply2 = msg("APPLY_TRANSFER_LOCAL", txId, destino, +monto);
-                LengthPrefixedCodec.write(s.getOutputStream(), apply2);
+                
                 String r1 = LengthPrefixedCodec.read(s.getInputStream());
-                String r2 = LengthPrefixedCodec.read(s.getInputStream());
-                if (voteCommit(r1) && voteCommit(r2)) {
-                    // replicación asíncrona la maneja el Central (simple)
-                    replicateAsync(pO, txId, new long[]{origen, destino}, new double[]{-monto, +monto});
+
+                if (voteCommit(r1)) {
                     return ok("OK", "tx="+txId);
                 }
-                return err("ERROR", "intra-shard failed");
+                return err("ERROR", "intra-shard failed: " + r1);
             } catch (Exception e) {
                 return err("ERROR", "intra-shard exception: " + e.getMessage());
             }
         }
+// ==========================================================   
 
         // 2PC: PREPARE a ambos
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -102,8 +121,8 @@ public class TwoPC {
 
         if (v1 && v2) {
             // COMMIT
-            boolean c1 = sendSimple(nO, commitAbort("COMMIT", txId), commitTimeoutMs);
-            boolean c2 = sendSimple(nD, commitAbort("COMMIT", txId), commitTimeoutMs);
+            boolean c1 = sendSimple(nO, msg("REPLICATE_APPLY", txId, origen, -monto), commitTimeoutMs);
+            boolean c2 = sendSimple(nD, msg("REPLICATE_APPLY", txId, destino, +monto), commitTimeoutMs);
             if (c1 && c2) {
                 replicateAsync(pO, txId, new long[]{origen}, new double[]{-monto});
                 replicateAsync(pD, txId, new long[]{destino}, new double[]{+monto});

@@ -118,22 +118,28 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleArqueo(Socket s) throws IOException {
-        // consulta a todos los primarios para sumar saldos (simple)
+    // En un sistema replicado, solo necesitamos consultar a UN nodo para obtener el total.
+    // Consultaremos al primario de la primera partición (part=0).
         double total = 0.0;
-        for (int part=0; part<3; part++) {
-            RoutingTable.Node p = routing.primaryOf(part);
-            try (Socket n = new Socket(p.host, p.port)) {
-                Map<String,Object> m = new LinkedHashMap<>();
-                m.put("type","SUM_SALDOS");
-                m.put("req_id", UUID.randomUUID().toString());
-                m.put("client_id","CENTRAL"); m.put("ts",System.currentTimeMillis());
-                m.put("data", Collections.emptyMap());
-                LengthPrefixedCodec.write(n.getOutputStream(), JsonLite.obj(m));
-                String resp = LengthPrefixedCodec.read(n.getInputStream());
-                Double sum = JsonLite.getDataDouble(resp, "sum");
-                if (sum != null) total += sum;
-            } catch (Exception e) { /* best-effort */ }
+        RoutingTable.Node p = routing.primaryOf(0); // Obtenemos solo el nodo de la partición 0
+
+        try (Socket n = new Socket(p.host, p.port)) {
+            Map<String,Object> m = new LinkedHashMap<>();
+            m.put("type","SUM_SALDOS");
+            m.put("req_id", UUID.randomUUID().toString());
+            m.put("client_id","CENTRAL");
+            m.put("ts",System.currentTimeMillis());
+            m.put("data", Collections.emptyMap());
+            LengthPrefixedCodec.write(n.getOutputStream(), JsonLite.obj(m));
+            String resp = LengthPrefixedCodec.read(n.getInputStream());
+            Double sum = JsonLite.getDataDouble(resp, "sum");
+            if (sum != null) total = sum; // Asignamos el total, no lo sumamos
+        } catch (Exception e) {
+        // Si el nodo primario falla, podríamos intentar con una réplica,
+        // pero para este arqueo, un nodo es suficiente.
+            System.err.println("Error al contactar al nodo para el arqueo: " + e.getMessage());
         }
+
         Map<String,Object> r = new LinkedHashMap<>();
         r.put("type","OK");
         Map<String,Object> data = new LinkedHashMap<>();

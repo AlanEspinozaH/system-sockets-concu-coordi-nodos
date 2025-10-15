@@ -112,11 +112,31 @@ public class WorkerHandler implements Runnable {
 
     private void handleApplyLocal(Socket so, String req) throws IOException {
         String tx = JsonLite.getDataString(req, "tx_id");
-        if (txlog.seen(tx)) { ok(so); return; }
-        Long id = JsonLite.getDataLong(req, "id");
-        Double delta = JsonLite.getDataDouble(req, "delta");
-        if (!store.canApply(id, delta)) { writeErr(so,"saldo_insuficiente"); return; }
-        store.applyDelta(id, delta, "Transferencia");
+        if (txlog.seen(tx)) {
+            ok(so);
+            return;
+        }
+
+        List<Map<String, Object>> ops = JsonLite.getListOfMaps(req, "data", "ops");
+        if (ops == null || ops.size() != 2) {
+            writeErr(so, "invalid_ops_for_local_transfer");
+            return;
+        }
+
+        // Extraer datos de las operaciones
+        long idOrigen = ((Number) ops.get(0).get("id")).longValue();
+        double deltaOrigen = ((Number) ops.get(0).get("delta")).doubleValue();
+        long idDestino = ((Number) ops.get(1).get("id")).longValue();
+
+        // Validación atómica: verificar si el origen puede aplicar el débito
+        if (!store.canApply(idOrigen, deltaOrigen)) {
+            writeErr(so, "saldo_insuficiente");
+            return;
+        }
+
+        // Aplicación atómica: aplicar ambos cambios
+        store.applyLocalTransfer(idOrigen, idDestino, -deltaOrigen); // -delta para obtener monto positivo
+
         txlog.put(tx, "COMMIT");
         ok(so);
     }
