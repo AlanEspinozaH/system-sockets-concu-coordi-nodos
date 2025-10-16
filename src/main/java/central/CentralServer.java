@@ -1,15 +1,10 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
-/** @author alulo */
 package central;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.UUID;
 import java.util.concurrent.*;
+
 
 public class CentralServer {
 
@@ -20,35 +15,53 @@ public class CentralServer {
         // Routing 3 partes con primarios N1,N2,N3
         RoutingTable rt = new RoutingTable();
         rt.putPart(0, new RoutingTable.Node("N1","localhost",6101),
-                      new RoutingTable.Node("N2","localhost",6102),
-                      new RoutingTable.Node("N3","localhost",6103));
+                    new RoutingTable.Node("N2","localhost",6102),
+                    new RoutingTable.Node("N3","localhost",6103));
         rt.putPart(1, new RoutingTable.Node("N2","localhost",6102),
-                      new RoutingTable.Node("N3","localhost",6103),
-                      new RoutingTable.Node("N1","localhost",6101));
+                    new RoutingTable.Node("N3","localhost",6103),
+                    new RoutingTable.Node("N1","localhost",6101));
         rt.putPart(2, new RoutingTable.Node("N3","localhost",6103),
-                      new RoutingTable.Node("N1","localhost",6101),
-                      new RoutingTable.Node("N2","localhost",6102));
+                    new RoutingTable.Node("N1","localhost",6101),
+                    new RoutingTable.Node("N2","localhost",6102));
 
-        ShardLocator loc = new ShardLocator(3);
-        TwoPC two = new TwoPC(rt, loc, 1500, 1000);
+        ShardLocator locator = new ShardLocator(3);
+        TwoPC twoPC = new TwoPC(rt, locator, 1500, 1000);
 
         ExecutorService pool = Executors.newFixedThreadPool(64);
 
-        Thread chat = new Thread(() -> listen(chatPort, pool, rt, loc, two), "chat-listener");
-        Thread bank = new Thread(() -> listen(bankPort, pool, rt, loc, two), "bank-listener");
-        chat.start(); bank.start();
-        System.out.println("Central listo. Chat="+chatPort+" Banco="+bankPort);
-        chat.join(); bank.join();
+        // 💡 Declaramos las variables finales para usarlas dentro de las lambdas
+        final int chatPortFinal = chatPort;
+        final int bankPortFinal = bankPort;
+        final RoutingTable rtFinal = rt;
+        final ShardLocator locatorFinal = locator;
+        final TwoPC twoPCFinal = twoPC;
+
+        Thread chatListener = new Thread(() -> listen(chatPortFinal, pool, rtFinal, locatorFinal, twoPCFinal), "chat-listener");
+        Thread bankListener = new Thread(() -> listen(bankPortFinal, pool, rtFinal, locatorFinal, twoPCFinal), "bank-listener");
+        chatListener.start(); 
+        bankListener.start();
+
+        System.out.println("Central listo. Chat=" + chatPort + " Banco=" + bankPort);
+        chatListener.join(); 
+        bankListener.join();
     }
 
-    private static void listen(int port, ExecutorService pool, RoutingTable rt, ShardLocator loc, TwoPC two) {
-        try (ServerSocket ss = new ServerSocket(port)) {
+
+
+    private static void listen(int port, ExecutorService pool,
+                               RoutingTable rt, ShardLocator locator, TwoPC twoPC) {
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            System.out.printf("Escuchando en puerto %d...%n", port);
             while (true) {
-                Socket s = ss.accept();
-                pool.submit(new ClientHandler(s, rt, loc, two));
+                try {
+                    Socket client = serverSocket.accept();
+                    pool.submit(new ClientHandler(client, rt, locator, twoPC));
+                } catch (IOException e) {
+                    System.err.println("Error aceptando conexión: " + e.getMessage());
+                }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.printf("No se pudo abrir el puerto %d: %s%n", port, e.getMessage());
         }
     }
 }

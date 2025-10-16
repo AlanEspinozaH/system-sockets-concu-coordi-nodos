@@ -10004,3 +10004,7 @@ idMov,idCuenta,concepto,monto
 10003,100,Transferencia,-500.0
 10004,500,Transferencia,-200.0
 10005,100,Transferencia,200.0
+10006,1001,Transferencia,-50.0
+10007,2002,Transferencia,50.0
+10008,1004,Transferencia,20.0
+10009,1003,Transferencia,-20.0
